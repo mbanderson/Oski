@@ -58,8 +58,8 @@ class SearchEngine:
             try:
                 page_start = content["queries"]["nextPage"][0]["startIndex"]
             except KeyError:  break
-            
-        return results
+
+        return [SearchResult(res) for res in results]
 
     def __repr__(self):
         return self.engine_id
@@ -75,13 +75,13 @@ class SearchResult:
     def __repr__(self):
         return self.title
     
-    
-def main(args):
-  engine = SearchEngine(args.dev_key, args.engine_id)
-  results = engine.query(args.query, args.results)
-  pprint([x["title"] for x in results])
 
-  return
+def main(args):
+    """Run input query in search engine."""
+    engine = SearchEngine(args.dev_key, args.engine_id)
+    results = engine.query(args.query, args.results)
+    pprint([res["title"] for res in results])
+    return
 
 
 if __name__ == '__main__':
