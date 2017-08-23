@@ -49,11 +49,10 @@ class SearchEngine:
                                               num=num_query,
                                               start=page_start).execute()
             # Check if out of results
-            num_found = len(content["items"])
-            if num_found == 0:  break
-
+            if "items" not in content.keys():  break
+            
             # Add results and move to next page
-            res_to_go -= num_found
+            res_to_go -= len(content["items"])
             results += content["items"]
             try:
                 page_start = content["queries"]["nextPage"][0]["startIndex"]
@@ -80,7 +79,8 @@ def main(args):
     """Run input query in search engine."""
     engine = SearchEngine(args.dev_key, args.engine_id)
     results = engine.query(args.query, args.results)
-    pprint([res["title"] for res in results])
+    pprint(results)
+    print "Found %d results." % len(results)
     return
 
 
