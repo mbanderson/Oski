@@ -21,6 +21,7 @@ class Article:
     def __repr__(self):
         return self.title
 
+
 class ArticleDB:
     """Stores articles in sqlite database."""
     DB_NAME = "Oski.db"
@@ -54,7 +55,7 @@ class ArticleDB:
         return True
 
     def delete_article(self, title):
-        """Delete article with matching SearchResult title."""
+        """Delete article with matching title."""
         if self.in_database(title):
             delete_cmd = """DELETE FROM %s WHERE title = ?""" % self.TABLE_NAME
             self.cursor.execute(delete_cmd, (title, ))
