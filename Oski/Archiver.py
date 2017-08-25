@@ -3,8 +3,28 @@
 
 import argparse
 import pdfkit
+import signal
+from functools import wraps
 
 
+def timeout(secs=20):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(secs)
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                signal.alarm(0) # disable alarm
+            return result
+
+    def handler():  return
+
+    return decorator
+
+
+@timeout
 def save_article(url, title):
     """Save url as a pdf."""
     options = {'quiet': ''}
