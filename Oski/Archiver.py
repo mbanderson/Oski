@@ -4,27 +4,38 @@
 import argparse
 import pdfkit
 import signal
+import os
+import errno
 from functools import wraps
 
 
-def timeout(secs=20):
+class TimeoutError(Exception):
+    pass
+
+def timeout(secs=20, default=False):
     def decorator(func):
+        def handler(signum, frame):
+            msg = os.strerror(errno.ETIME)
+            raise TimeoutError(msg)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             signal.signal(signal.SIGALRM, handler)
             signal.alarm(secs)
             try:
                 result = func(*args, **kwargs)
+            except TimeoutError:
+                result = default
             finally:
                 signal.alarm(0) # disable alarm
             return result
 
-    def handler():  return
+        return wrapper
 
     return decorator
 
 
-@timeout
+@timeout()
 def save_article(url, title):
     """Save url as a pdf."""
     options = {'quiet': ''}
