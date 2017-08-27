@@ -32,6 +32,7 @@ def read_banned_domains(banned_file):
         with open(banned_file, 'r') as f:
             content = f.readlines()
             return [domain.strip() for domain in content]
+    print "SearchEngine: Cannot locate input banned domain file."
     return []
     
 def read_engine_json(json_file, key_str, engine_str):
@@ -56,7 +57,7 @@ class SearchEngine:
         # Service for Google API Console
         self.service = build("customsearch", "v1", developerKey=dev_key)
 
-    def query(self, search_str, num_results):
+    def query(self, search_str, num_results, exact_terms="", or_terms=""):
         """Query engine with search string, leaf through multiple pages."""
         results = []
         page_start = 1
@@ -68,7 +69,9 @@ class SearchEngine:
             content = self.service.cse().list(q=search_str, 
                                               cx=self.engine_id,
                                               num=num_query,
-                                              start=page_start).execute()
+                                              start=page_start,
+                                              exactTerms=exact_terms,
+                                              orTerms=or_terms).execute()
             # Check if out of results
             if "items" not in content.keys():  break
             
@@ -99,7 +102,8 @@ class SearchResult:
 def main(args):
     """Run input query in search engine."""
     engine = SearchEngine(args.dev_key, args.engine_id)
-    results = engine.query(args.query, args.results)
+    results = engine.query(args.query, args.results, 
+                           args.exactterms, args.orterms)
     results = rem_banned_domains(results, args.banned_domains)
 
     pprint(results)
@@ -115,15 +119,19 @@ def main(args):
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser()
     parser.add_argument("-ef", "--enginefile", type=str, required=True,
-                        help="specify file containing search engine parameters")
+                    help="specify file containing search engine parameters")
     parser.add_argument("-q", "--query", type=str, default="Cal Kicker",
-                        help="specify search query")
+                    help="specify search query")
     parser.add_argument("-r", "--results", type=int, default=10,
-                        help="specify number of results")
+                    help="specify number of results")
+    parser.add_argument("-et", "--exactterms", type=str,
+                    help="each result must contain this string")
+    parser.add_argument("-ot", "--orterms", type=str,
+                    help="each result must contain at least one term in string")
     parser.add_argument("-bf", "--banfile", type=str,
-                        help="specify banned domain files")
+                    help="specify banned domain files")
     parser.add_argument("--save", action="store_true",
-                        help="flag to save results as pdfs")
+                    help="flag to save results as pdfs")
     args = parser.parse_args()
 
     [args.dev_key, args.engine_id] = read_engine_json(args.enginefile, 
