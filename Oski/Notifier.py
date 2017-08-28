@@ -22,9 +22,9 @@ class Email:
         self.email["From"] = self.sender
         self.email["To"] = self.receiver
         if use_html:
-            body = MIMEText(content, "plain")
-        else:
             body = MIMEText(content, "html")
+        else:
+            body = MIMEText(content, "plain")
         self.email.attach(body)
 
     def __repr__(self):

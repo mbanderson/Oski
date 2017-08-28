@@ -57,7 +57,8 @@ class SearchEngine:
         # Service for Google API Console
         self.service = build("customsearch", "v1", developerKey=dev_key)
 
-    def query(self, search_str, num_results, exact_terms="", or_terms=""):
+    def query(self, search_str, num_results, 
+              exact_terms="", or_terms="", date_restr=""):
         """Query engine with search string, leaf through multiple pages."""
         results = []
         page_start = 1
@@ -71,7 +72,8 @@ class SearchEngine:
                                               num=num_query,
                                               start=page_start,
                                               exactTerms=exact_terms,
-                                              orTerms=or_terms).execute()
+                                              orTerms=or_terms,
+                                              dateRestrict=date_restr).execute()
             # Check if out of results
             if "items" not in content.keys():  break
             
@@ -103,7 +105,7 @@ def main(args):
     """Run input query in search engine."""
     engine = SearchEngine(args.dev_key, args.engine_id)
     results = engine.query(args.query, args.results, 
-                           args.exactterms, args.orterms)
+                           args.exactterms, args.orterms, args.daterestrict)
     results = rem_banned_domains(results, args.banned_domains)
 
     pprint(results)
@@ -128,6 +130,8 @@ if __name__ == '__main__':
                     help="each result must contain this string")
     parser.add_argument("-ot", "--orterms", type=str,
                     help="each result must contain at least one term in string")
+    parser.add_argument("-dr", "--daterestrict", type=str,
+                    help="restrict results by date. Google API CSE format")
     parser.add_argument("-bf", "--banfile", type=str,
                     help="specify banned domain files")
     parser.add_argument("--save", action="store_true",
