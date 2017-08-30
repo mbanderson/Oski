@@ -54,6 +54,15 @@ class ArticleDB:
         self.connection.commit()
         return True
 
+    def add_articles(self, articles):
+        """Add multiple articles to database. Return True if any added."""
+        added = []
+        for article in articles:
+            success = self.add_article(article) 
+            if success:
+                added.append(article)
+        return added
+
     def delete_article(self, title):
         """Delete article with matching title."""
         if self.in_database(title):
@@ -88,10 +97,18 @@ class ArticleDB:
         return len(results) > 0
 
 
+def create_article(search_res):
+    """Create Article object from SearchResult instance."""
+    return Article(search_res.title, search_res.url, search_res.snippet)
+
+def create_articles(results):
+    """Convert list of SearchResults to Articles."""
+    return [create_article(res) for res in results]
+
+
 def main():
     db = ArticleDB()
     return
-
 
 if __name__ == "__main__":
     main()

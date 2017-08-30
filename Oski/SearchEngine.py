@@ -141,7 +141,7 @@ if __name__ == '__main__':
     [args.dev_key, args.engine_id] = read_engine_json(args.enginefile, 
                                                       "dev_key", "engine_id")
     if not (args.dev_key and args.engine_id):
-        print "SearchEngine: Not able to read input key files."
+        print "SearchEngine: Not able to read input key file."
         sys.exit(1)
     
     args.banned_domains = []

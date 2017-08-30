@@ -36,21 +36,21 @@ def timeout(secs=30, default=False):
 
 
 @timeout()
-def save_article(url, title):
+def save_article(url, title, path=""):
     """Save url as a pdf."""
     options = {'quiet': ''}
     try:
         # If wkhtmltopdf.exe not on path, add configuration:
         # config = pdfkit.configuration(wkhtmltopdf="path/to/wkhtmltopdf")
         # pdfkit.from_url(..., configuration=config)
-
-        success = pdfkit.from_url(url, title + '.pdf', options=options)
+        output_path = path + os.sep + title + '.pdf'
+        pdfkit.from_url(url, output_path, options=options)
         return True
     except IOError:  return False
     
 
 def main(args):
-    return save_article(args.url, args.title)
+    return save_article(args.url, args.title, args.path)
 
 
 if __name__ == "__main__":
@@ -59,6 +59,11 @@ if __name__ == "__main__":
         help="specify url to save as article")
     parser.add_argument("--title", type=str, required=True,
         help="specify article title")
+    parser.add_argument("--path", type=str,
+        help="specify output directory path")
     args = parser.parse_args()
+
+    if args.path and not os.path.isdir(args.path):
+        os.makedirs(args.path)
 
     main(args)
