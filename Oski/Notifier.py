@@ -31,6 +31,12 @@ class Email:
         """Converts MIME email to sendable format."""
         return self.email.as_string()
 
+    def change_receiver(self, receiver):
+        """Modify email recipient so we can resend to additional users."""
+        self.receiver = receiver
+        self.email["To"] = self.receiver
+        return
+
 
 class GmailSender:
     """Sends email through Gmail account."""
@@ -62,6 +68,7 @@ class Notifier:
 
     def mail_subscribers(self, email):
         for subscriber in self.subscribers:
+            email.change_receiver(subscriber)
             self.sender.send_email(email)
         return
 

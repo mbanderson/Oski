@@ -4,12 +4,13 @@
 import argparse
 import json
 import sys
+import os
 from collections import namedtuple
 from SearchEngine import (SearchEngine, read_engine_json, 
                           read_banned_domains, rem_banned_domains, to_ascii)
 from ArticleDB import Article, ArticleDB, create_articles
-from Archiver import save_articles
-from Notifier import Notifier
+from Archiver import save_article
+from Notifier import Notifier, Email
 
 
 class Oski:
@@ -17,7 +18,6 @@ class Oski:
     def __init__(self, eng_params, query_params, arch_params, notif_params):
         self.save = arch_params.save_pdfs
         self.path = arch_params.save_path
-
         self.query_params = query_params
 
         self.searcher = SearchEngine(eng_params.dev_key, eng_params.engine_id)
@@ -30,18 +30,29 @@ class Oski:
         """Add to database, make pdfs, update subscribers."""
         # Try to add to db
         added = self.db.add_articles(articles)
+        print "Found %d new articles" % len(added)
+
+        # Email subscribers about new articles
+        subject = "New Articles!"
+        html = create_email_html(added)
+
+        email = Email(self.notifier.user,
+                      "", subject, html, use_html=True)
+        self.notifier.mail_subscribers(email)
+        print "Mailed subscribers!"
 
         # Convert added articles to pdfs
         if added and self.save:
             for search_res in added:
                 try:
-                    save_article(search_res.url, search_res.title, self.path)
-                except:  continue
-
-        ## TODO: Email subscribers about new articles
-        # ... Get html content
-        # ... Package into email
-        # ... Pass email to Notifier
+                    success = save_article(search_res.url, search_res.title, self.path)
+                    if success:
+                        print "Oski: Saved article: " + search_res.title
+                    else:  
+                        print "Oski: Article save TIMEOUT: " + search_res.title
+                except Exception as e:
+                    print "Oski: Non-timeout EXCEPTION: " + search_res.title
+                    print e
 
         return added
 
@@ -77,7 +88,42 @@ class Oski:
 
 def create_email_html(articles):
     """Create HTML content to send to subscribers."""
-    pass
+    html = '<table style="width: 600px"> \
+              <tr> \
+                <th style="background-color: #003262; \
+                           color: #FDB515; \
+                           font: Arial; \
+                           font-size: 20px; \
+                           text-align: left; \
+                           padding-left: 10px;"> \
+                <b><i>Hey Cal Fans!</i></b> \
+                </th> \
+              </tr>'
+    html += '<tr> \
+               <td style="font: Arial; \
+                          font-size: 16px; \
+                          padding-left: 10px; \
+                          padding-bottom: 20px;"> \
+               <b>I think I found some new articles.</b> \
+               </td> \
+             </tr>'
+
+    for article in articles:
+        # Title with URL, then snippet
+        html += '<tr> \
+                   <td style="font: Arial; font-size: 16px;"> \
+                   <a href="%s">%s</a> \
+                   </td> \
+                 </tr>' % (article.url, article.title)
+        html += '<tr> \
+                   <td style="font: Arial; \
+                              font-size: 12px; \
+                              padding-bottom: 20px;"> \
+                   %s \
+                   </td> \
+                 </tr>' % article.snippet
+    html += '</table>'
+    return html
 
 def set_oski_args(args):
     """Read parameters from Oski parameter file."""
@@ -90,7 +136,7 @@ def set_oski_args(args):
                     val = to_ascii(val)
                 if type(val) == type(list()):
                     val = [to_ascii(v) if type(v)==type(unicode()) else v \
-                           for v in val)]
+                           for v in val]
 
                 setattr(args, key, val)
         except KeyError:
@@ -164,7 +210,7 @@ if __name__ == "__main__":
     # Set parameters from Oski file
     if not os.path.exists(args.oskiparams):
         print "Oski: Not able to LOCATE input parameter file." 
-    set_oski_args()
+    set_oski_args(args)
 
     # Read separate SearchEngine key file
     [args.dev_key, args.engine_id] = read_engine_json(

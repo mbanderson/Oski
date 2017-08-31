@@ -12,7 +12,7 @@ from functools import wraps
 class TimeoutError(Exception):
     pass
 
-def timeout(secs=30, default=False):
+def timeout(secs=60, default=False):
     def decorator(func):
         def handler(signum, frame):
             msg = os.strerror(errno.ETIME)
