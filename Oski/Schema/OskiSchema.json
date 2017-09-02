@@ -1,0 +1,85 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "description": "Parameters for Oski.",
+    "type": "object",
+    "properties": {
+        "searcher": {
+            "description": "Parameters for search queries.",
+            "type": "object",
+            "properties": {
+                "queries": {
+                    "description": "List of search queries.",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/definitions/query" }, 
+                    "uniqueItems": true
+                },
+                "ban_file": {
+                    "description": "List of site domains to remove from results.",
+                    "type": "string"
+                }  
+            },
+            "required": ["queries"]
+        },
+        "archiver": {
+            "description": "Parameters for article archiving.",
+            "type": "object",
+            "properties": {
+                "save_pdfs": { "type": "boolean" },
+                "save_Path": {"type": "string" }
+            },
+            "required": ["save_pdfs", "save_path"]
+        }
+    },
+    "required": ["searcher"],
+    "definitions": {
+        "query": {
+            "description": "Parameters for a single search.",
+            "type": "object",
+            "properties": {
+                "search": {
+                    "description": "String to search.",
+                    "type": "string"
+                },
+                "num_results": {
+                    "description": "Results to return from search.",
+                    "type": "object",
+                    "properties":{
+                        "init": {
+                            "description": "Max number of initial results from query, used to populate database.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true
+                        },
+                        "update": {
+                            "description": "Max number of recent results.",
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true
+                        }
+                    },
+                    "required": ["init"]
+                },
+                "options" : {
+                    "description": "Add additional search parameters.",
+                    "type": "object",
+                    "properties": {
+                        "exact_terms": {
+                            "description": "All results must contain this string.",
+                            "type": "string"
+                        },
+                        "or_terms": {
+                            "description": "All results must contain one term in string.",
+                            "type": "string"
+                        },
+                        "date_restrict": {
+                            "description": "Restrict articles by date. Ex: d7 = last 7 days.",
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "required": ["search", "num_results"]
+        }
+    }
+}

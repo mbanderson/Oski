@@ -3,28 +3,60 @@
 
 import argparse
 import json
+import jsonschema
 import sys
 import os
-from collections import namedtuple
 from SearchEngine import (SearchEngine, read_engine_json, 
                           read_banned_domains, rem_banned_domains, to_ascii)
 from ArticleDB import Article, ArticleDB, create_articles
 from Archiver import save_article
 from Notifier import Notifier, Email
+from datetime import datetime
 
 
 class Oski:
     """Manages searching, archiving, storing in database, and notifying."""
-    def __init__(self, eng_params, query_params, arch_params, notif_params):
-        self.save = arch_params.save_pdfs
-        self.path = arch_params.save_path
-        self.query_params = query_params
+    def __init__(self, oski_json, keys, notif_json=""):
+        # Validate json
+        [success, params] = load_json(oski_json)
+        if not success:
+            sys.exit(1)
 
-        self.searcher = SearchEngine(eng_params.dev_key, eng_params.engine_id)
+        # Load parameters
+        self.verbose = verbose
+        self.queries = oski_json["searcher"]["queries"]
+
+        # Read banned domains parameter
+        self.banned_domains = None
+        if "ban_file" in oski_json["searcher"].keys():
+            ban_file = oski_json["searcher"]["ban_file"]
+            if os.path.exists(ban_file):
+                self.banned_domains = read_banned_domains(ban_file)
+            else:
+                print "Oski: Unable to LOCATE %s" % ban_file
+
+        # Initialize search engine and database
+        self.searcher = SearchEngine(keys["dev_key"], keys["engine_id"])
         self.db = ArticleDB()
-        self.notifier = Notifier(notif_params.subscribers, 
-                                 notif_params.notifier_user, 
-                                 notif_params.notifier_pwd)
+
+        # Optionally, initialize archiving system
+        self.save_pdfs, self.save_path = None, None
+        if "archiver" in oski_json.keys():
+            self.save_pdfs = oski_json["archiver"]["save_pdfs"]
+            self.save_path = oski_json["archiver"]["save_path"]
+
+        # Optionally, notify subscribers of new articles
+        self.notifier = None
+        if notif_json:
+            subscr_file = notif_json["subscr_file"]
+            if os.path.exists(subscr_file):
+                with open(subscr_file, 'r') as f:
+                    subscribers = f.readlines()
+                self.notifier = Notifier(subscribers, 
+                                         notif_json["user"], notif_json["pwd"])
+            else:
+                print "Oski: Unable to LOCATE %s" % subscr_file
+
 
     def oski_update(self, articles):
         """Add to database, make pdfs, update subscribers."""
@@ -33,19 +65,21 @@ class Oski:
         print "Found %d new articles" % len(added)
 
         # Email subscribers about new articles
-        subject = "New Articles!"
-        html = create_email_html(added)
-
-        email = Email(self.notifier.user,
-                      "", subject, html, use_html=True)
-        self.notifier.mail_subscribers(email)
-        print "Mailed subscribers!"
+        if added:
+            subject = "New Articles!"
+            html = create_email_html(added)
+            if html:
+                email = Email(self.notifier.user,
+                            "", subject, html, use_html=True)
+                self.notifier.mail_subscribers(email) 
+                print "Mailed subscribers! %s" % str(datetime.now())
 
         # Convert added articles to pdfs
-        if added and self.save:
+        if added and self.save_pdfs:
             for search_res in added:
                 try:
-                    success = save_article(search_res.url, search_res.title, self.path)
+                    success = save_article(search_res.url, 
+                                           search_res.title, self.save_path)
                     if success:
                         print "Oski: Saved article: " + search_res.title
                     else:  
@@ -56,138 +90,119 @@ class Oski:
 
         return added
 
-    def perform_search(self, use_date_restrict=False):
+    def perform_search(self, init_search=True):
         """Search for content with each input query."""
         results = []
-        for i in xrange(0, len(self.query_params.queries)):
-            query = self.query_params.queries[i]
-            init_results = self.query_params.init_results[i]
-            exact_terms = self.query_params.exact_terms[i]
-            or_terms = self.query_params.or_terms[i]
-            date_restrict = "" # no date restrict
-            if use_date_restrict:
-                date_restrict = self.query_params.date_restrict[i]
+        for query in xrange(0, len(self.queries)):
+            search = query["search"]
+
+            if init_search:
+                num_results = query["num_results"]["init"]
+            else:
+                num_results = get_value(query["num_results"], "update", 10)
+
+            exact_terms, or_terms, date_restrict = "", "", ""
+            if "options" in query.keys():
+                exact_terms = get_value(query["options"], "exact_terms")
+                or_terms = get_value(query["options"], "or_terms")
+                date_restrict = get_value(query["options"], "date_restrict")
 
             # Hunt for recent articles
-            results += self.searcher.query(query, init_results, 
+            results += self.searcher.query(search, num_results, 
                                            exact_terms, or_terms, date_restrict)
         
-        results = rem_banned_domains(results, self.query_params.banned_domains)
+        results = rem_banned_domains(results, self.banned_domains)
         return create_articles(results)
 
     def initial_search(self):
         """Searches for content without date restrictions.
         This is to perform the initial database population.
         """
-        return self.perform_search(use_date_restrict=False)
+        return self.perform_search(init_search=True)
 
     def recent_search(self):
         """Searches for recent content, with date restrictions."""
-        return self.perform_search(use_date_restrict=True)
+        return self.perform_search(init_search=False)
 
 
-def create_email_html(articles):
-    """Create HTML content to send to subscribers."""
-    html = '<table style="width: 600px"> \
-              <tr> \
-                <th style="background-color: #003262; \
-                           color: #FDB515; \
-                           font: Arial; \
-                           font-size: 20px; \
-                           text-align: left; \
-                           padding-left: 10px;"> \
-                <b><i>Hey Cal Fans!</i></b> \
-                </th> \
-              </tr>'
-    html += '<tr> \
-               <td style="font: Arial; \
-                          font-size: 16px; \
-                          padding-left: 10px; \
-                          padding-bottom: 20px;"> \
-               <b>I think I found some new articles.</b> \
-               </td> \
-             </tr>'
+def create_email_html(articles, 
+                      header_html="EmailTemplates/CalBearsHeader.html", 
+                      article_html="EmailTemplates/CalBearsArticle.html"):
+    html = ""
+    if not check_files_exist([header_html, article_html]) or len(articles) == 0:  
+        return html
+    with open(header_html, 'r') as f:
+        header_template = f.read()
+    with open(article_html, 'r') as f:
+        article_template = f.read()
 
+    html += '<table style="width: 600px">'
+    html += header_template
     for article in articles:
-        # Title with URL, then snippet
-        html += '<tr> \
-                   <td style="font: Arial; font-size: 16px;"> \
-                   <a href="%s">%s</a> \
-                   </td> \
-                 </tr>' % (article.url, article.title)
-        html += '<tr> \
-                   <td style="font: Arial; \
-                              font-size: 12px; \
-                              padding-bottom: 20px;"> \
-                   %s \
-                   </td> \
-                 </tr>' % article.snippet
-    html += '</table>'
+        html += article_template.format(article.url, article.title, 
+                                        article.snippet)
+    html += "</table>"
+    html = html.replace("\n", "")
     return html
 
-def set_oski_args(args):
-    """Read parameters from Oski parameter file."""
-    with open(args.oskiparams, 'r') as f:
+## Helpers
+def check_files_exist(files):
+    """Check all files in input list exist."""
+    for input_file in files:
+        if not os.path.exists(input_file):
+            print "Oski: Unable to LOCATE %s" % input_file
+            return False
+    return True
+
+def uni2ascii(input):
+    """Recursively convert all unicode values to ascii."""
+    if isinstance(input, dict):
+        return dict((uni2ascii(key), uni2ascii(value)) \
+                     for key, value in input.iteritems())
+    elif isinstance(input, list):
+        return [uni2ascii(element) for element in input]
+    elif isinstance(input, unicode):
+        return to_ascii(input)
+    else:
+        return input
+
+def validate(json_file, schema="Schema/OskiParams.json"):
+    """Validate input json file against schema json file."""
+    if not check_files_exist([json_file, schema]):
+        return False, None
+    with open(json_file, 'r') as f:
         content = json.load(f)
-        try:
-            for key, val in content.iteritems():
-                # Convert all unicode strings
-                if type(val) == type(unicode()):
-                    val = to_ascii(val)
-                if type(val) == type(list()):
-                    val = [to_ascii(v) if type(v)==type(unicode()) else v \
-                           for v in val]
+    with open(schema, 'r') as f:
+        schema = json.load(f)
+    try:
+        jsonschema.validate(content, schema)
+        return True, content
+    except (jsonschema.exceptions.ValidationError,
+            jsonschema.exceptions.SchemaError):
+        print "Oski: Validation test FAILED on %s" % json_file
+        return False, None
 
-                setattr(args, key, val)
-        except KeyError:
-            print "Oski: Not able to READ input parameter file."
-            sys.exit(1)
-    return
+def load_json(json_file, schema="Schema/OskiParams.json"):
+    """Validate json file and convert unicode values to ascii."""
+    [success, params] = validate(json_file, schema)
+    if success:
+        params = uni2ascii(params)
+    return success, params
 
-def get_engine_params(args):
-    """Extract engine parameters from argparse Namespace."""
-    EngineParams = namedtuple("EngineParams",
-                             ["dev_key", "engine_id"])
-    return EngineParams(args.dev_key, args.engine_id)
-
-def get_query_params(args):
-    """Extract query parameters from arguments."""
-    QueryParams = namedtuple("QueryParams", 
-                            ["queries", "init_results", "update_results",
-                             "exact_terms", "or_terms", "date_restrict",
-                             "banned_domains"])
-    return QueryParams(args.queries, args.init_results, args.update_results,
-                       args.exact_terms, args.or_terms, args.date_restrict,
-                       args.banned_domains)
-
-def get_archiver_params(args):
-    """Extract archiver parameters from arguments."""
-    ArchiverParams = namedtuple("ArchiverParams",
-                               ["save_pdfs", "save_path"])
-    return ArchiverParams(args.save_pdfs, args.save_path)
-
-def get_notifier_params(args):
-    """Extract notifier parameters from arguments."""
-    NotifierParams = namedtuple("NotifierParams",
-                               ["subscribers", 
-                                "notifier_user", "notifier_pwd"])
-    return NotifierParams(args.subscribers, 
-                          args.notifier_user, args.notifier_pwd)
+def get_value(json_dict, key, default=""):
+    """Try to fetch optional parameters from input json dict."""
+    try:
+        return json_dict[key]
+    except KeyError:  return default
 
 
 def main(args):
     # Determine if database previously populated
     do_init_searches = not os.path.exists(ArticleDB.DB_NAME)
 
-    # Extract Oski parameters
-    eng_params = get_engine_params(args)
-    query_params = get_query_params(args)
-    arch_params = get_archiver_params(args)
-    notif_params = get_notifier_params(args)
-
     # Hire Oski
-    oski = Oski(eng_params, query_params, arch_params, notif_params)
-    
+    oski = Oski(args.oskiparams, args.keys, args.notifyparams)
+        
     # Search for articles
     if do_init_searches:
         new_articles = oski.initial_search()
@@ -202,26 +217,19 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-op", "--oskiparams", type=str, required=True,
-                    help="specify parameter file for Oski")
-    parser.add_argument("-ef", "--enginefile", type=str, required=True,
-                    help="specify file containing search engine parameters")
+        help="specify parameter file for Oski")
+    parser.add_argument("-kf", "--keyfile", type=str, required=True,
+        help="specify file containing search engine keys")
+    parser.add_argument("-np", "--notifyparams", type=str,
+        help="specify file containing email notification parameters")
     args = parser.parse_args()
 
-    # Set parameters from Oski file
-    if not os.path.exists(args.oskiparams):
-        print "Oski: Not able to LOCATE input parameter file." 
-    set_oski_args(args)
+    if not check_files_exist([args.oskiparams, args.keyfile])
+        print "Oski: Unable to LOCATE input parameter or key files."
+    if args.notifyparams and not os.path.exists(args.notifyparams):
+        print "Oski: Notification settings provided but unable to LOCATE file."
 
-    # Read separate SearchEngine key file
-    [args.dev_key, args.engine_id] = read_engine_json(
-                                     args.enginefile, "dev_key", "engine_id")
-    if not (args.dev_key and args.engine_id):
-        print "Oski: Not able to READ input key file."
-        sys.exit(1)
-    
-    # Load banned domains from file specified in Oski parameters
-    args.banned_domains = []
-    if args.banfile:
-        args.banned_domains = read_banned_domains(args.banfile)
+    with open(args.keyfile, 'r') as f:
+        args.keys = json.load(f)
 
     main(args)

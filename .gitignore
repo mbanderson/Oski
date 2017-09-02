@@ -1,6 +1,8 @@
 Keys/
 Parameters/
+Articles/
 *.pdf
 
 *.pyc
+*.py~
 *.db
