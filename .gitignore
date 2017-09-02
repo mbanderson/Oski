@@ -2,7 +2,8 @@ Keys/
 Parameters/
 Articles/
 *.pdf
+*.db
+*.sh
 
 *.pyc
 *.py~
-*.db
