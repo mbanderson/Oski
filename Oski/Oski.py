@@ -23,13 +23,12 @@ class Oski:
             sys.exit(1)
 
         # Load parameters
-        self.verbose = verbose
-        self.queries = oski_json["searcher"]["queries"]
+        self.queries = params["searcher"]["queries"]
 
         # Read banned domains parameter
         self.banned_domains = None
-        if "ban_file" in oski_json["searcher"].keys():
-            ban_file = oski_json["searcher"]["ban_file"]
+        if "ban_file" in params["searcher"].keys():
+            ban_file = params["searcher"]["ban_file"]
             if os.path.exists(ban_file):
                 self.banned_domains = read_banned_domains(ban_file)
             else:
@@ -41,9 +40,9 @@ class Oski:
 
         # Optionally, initialize archiving system
         self.save_pdfs, self.save_path = None, None
-        if "archiver" in oski_json.keys():
-            self.save_pdfs = oski_json["archiver"]["save_pdfs"]
-            self.save_path = oski_json["archiver"]["save_path"]
+        if "archiver" in params.keys():
+            self.save_pdfs = params["archiver"]["save_pdfs"]
+            self.save_path = params["archiver"]["save_path"]
 
         # Optionally, notify subscribers of new articles
         self.notifier = None
@@ -65,7 +64,7 @@ class Oski:
         print "Found %d new articles" % len(added)
 
         # Email subscribers about new articles
-        if added:
+        if added and self.notifier:
             subject = "New Articles!"
             html = create_email_html(added)
             if html:
@@ -81,11 +80,11 @@ class Oski:
                     success = save_article(search_res.url, 
                                            search_res.title, self.save_path)
                     if success:
-                        print "Oski: Saved article: " + search_res.title
+                        print 'Oski: Saved article "%s"' % search_res.title
                     else:  
-                        print "Oski: Article save TIMEOUT: " + search_res.title
+                        print 'Oski: Save TIMEOUT on "%s"' % search_res.title
                 except Exception as e:
-                    print "Oski: Non-timeout EXCEPTION: " + search_res.title
+                    print 'Oski: Non-timeout EXCEPTION on "%s"' % search_res.title
                     print e
 
         return added
@@ -93,7 +92,7 @@ class Oski:
     def perform_search(self, init_search=True):
         """Search for content with each input query."""
         results = []
-        for query in xrange(0, len(self.queries)):
+        for query in self.queries:
             search = query["search"]
 
             if init_search:
@@ -166,7 +165,7 @@ def uni2ascii(input):
     else:
         return input
 
-def validate(json_file, schema="Schema/OskiParams.json"):
+def validate(json_file, schema):
     """Validate input json file against schema json file."""
     if not check_files_exist([json_file, schema]):
         return False, None
@@ -182,7 +181,7 @@ def validate(json_file, schema="Schema/OskiParams.json"):
         print "Oski: Validation test FAILED on %s" % json_file
         return False, None
 
-def load_json(json_file, schema="Schema/OskiParams.json"):
+def load_json(json_file, schema="Schema/OskiSchema.json"):
     """Validate json file and convert unicode values to ascii."""
     [success, params] = validate(json_file, schema)
     if success:
@@ -201,7 +200,7 @@ def main(args):
     do_init_searches = not os.path.exists(ArticleDB.DB_NAME)
 
     # Hire Oski
-    oski = Oski(args.oskiparams, args.keys, args.notifyparams)
+    oski = Oski(args.oskifile, args.keys, args.notifyparams)
         
     # Search for articles
     if do_init_searches:
@@ -216,20 +215,22 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-op", "--oskiparams", type=str, required=True,
+    parser.add_argument("-op", "--oskifile", type=str, required=True,
         help="specify parameter file for Oski")
     parser.add_argument("-kf", "--keyfile", type=str, required=True,
         help="specify file containing search engine keys")
-    parser.add_argument("-np", "--notifyparams", type=str,
+    parser.add_argument("-np", "--notifyfile", type=str,
         help="specify file containing email notification parameters")
     args = parser.parse_args()
 
-    if not check_files_exist([args.oskiparams, args.keyfile])
+    if not check_files_exist([args.oskifile, args.keyfile]):
         print "Oski: Unable to LOCATE input parameter or key files."
-    if args.notifyparams and not os.path.exists(args.notifyparams):
+    if args.notifyfile and not os.path.exists(args.notifyfile):
         print "Oski: Notification settings provided but unable to LOCATE file."
 
     with open(args.keyfile, 'r') as f:
         args.keys = json.load(f)
+    with open(args.notifyfile, 'r') as f:
+        args.notifyparams = json.load(f)
 
     main(args)
