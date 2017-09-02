@@ -1,0 +1,24 @@
+{
+    "searcher": {
+        "queries": [
+            {
+                "search": "Your Query Here",
+                "num_results": {
+                    "init": 20,
+                    "update": 5
+                },
+                "options": {
+                    "exact_terms": "Query Must Contain",
+                    "or_terms": "Query Might Contain",
+                    "date_restrict": "d7"
+                }
+            }
+        ],
+        "ban_file": "ExampleParameters/BannedDomains.txt"
+    },
+
+    "archiver": {
+        "save_pdfs": true,
+        "save_path": "/Articles"
+    }
+}
