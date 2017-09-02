@@ -225,6 +225,7 @@ if __name__ == "__main__":
 
     if not check_files_exist([args.oskifile, args.keyfile]):
         print "Oski: Unable to LOCATE input parameter or key files."
+        sys.exit(1)
     if args.notifyfile and not os.path.exists(args.notifyfile):
         print "Oski: Notification settings provided but unable to LOCATE file."
 
