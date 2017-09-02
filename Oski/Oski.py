@@ -104,7 +104,8 @@ class Oski:
             if "options" in query.keys():
                 exact_terms = get_value(query["options"], "exact_terms")
                 or_terms = get_value(query["options"], "or_terms")
-                date_restrict = get_value(query["options"], "date_restrict")
+                if not init_search:
+                    date_restrict = get_value(query["options"], "date_restrict")
 
             # Hunt for recent articles
             results += self.searcher.query(search, num_results, 
