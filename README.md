@@ -3,6 +3,8 @@
 # Oski
 Oski archives articles of Cal football placekickers. Oski searches the web for new articles, archives the results, and sends an email notification to subscribers.
 
+![Oski Email Notification](Oski/Images/EmailScreenshot.PNG)
+
 ### Implementation
 Oski's search capabilities utilize the Google Custom Search API. To use this API, you must request a developer key and define your own custom search engine. For more details, check out the [Google Custom Search API](https://developers.google.com/custom-search/json-api/v1/overview). I also recommend checking out the [Custom Search Parameters](https://developers.google.com/custom-search/json-api/v1/reference/cse/list) to see the available options.
 
