@@ -12,6 +12,7 @@ from ArticleDB import Article, ArticleDB, create_articles
 from Archiver import save_article
 from Notifier import Notifier, Email
 from datetime import datetime
+from getpass import getpass
 
 
 class Oski:
@@ -234,5 +235,8 @@ if __name__ == "__main__":
         args.keys = json.load(f)
     with open(args.notifyfile, 'r') as f:
         args.notifyparams = json.load(f)
+        if "pwd" not in args.notifyparams.keys():
+            prompt = "%s password: " % args.notifyparams["user"]
+            args.notifyparams["pwd"] = getpass(prompt)
 
     main(args)
